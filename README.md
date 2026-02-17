@@ -48,6 +48,11 @@ The governor implements a **Double-Threshold Hysteresis Window** to prevent actu
 | **Heating** | $< 22.0^\circ\text{C}$ | Servo to **45°** for air recirculation; Blink alert (TIM2). |
 | **Breach** | LDR/IR Trigger | UART Alert + Emergency visual strobe. |
 
+> **Note:** These operational thresholds are fully customizable. You can modify the system's temperature range by navigating to the global configuration file and updating the following definitions:
+> ```c
+> #define optimum_temp_low  22.0f 
+> #define optimum_temp_high 28.0f 
+> ```
 
 
 ---
@@ -82,4 +87,4 @@ The **UART Log Engine** (115200 Baud) uses an interrupt-driven state machine to 
 - [ ] **CMSIS-DSP Optimization**: Using ARM-specific instructions to accelerate Steinhart-Hart floating-point calculations.
 
 ---
-**Developed by [Your Name] | IIST | specialized in Low-Level Firmware Architecture**
+**Developed by Shaurya Singh | IIST | specialized in Low-Level Firmware Architecture & TinyML**
