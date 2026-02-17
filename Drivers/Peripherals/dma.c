@@ -14,7 +14,6 @@ void dma_init(void){
 	              DMA_HIFCR_CDMEIF6 | DMA_HIFCR_CFEIF6 |
 	              DMA_HIFCR_CHTIF6;
 	DMA1_Stream6->PAR = (uint32_t)&I2C1->DR;
-//	DMA1_Stream6->M0AR = (uint32_t)&display_buffer[0];
 	DMA1_Stream6->CR &= ~((3U << DMA_SxCR_MSIZE_Pos) | (3U << DMA_SxCR_PSIZE_Pos) | (7U << DMA_SxCR_CHSEL_Pos));
 	DMA1_Stream6->CR |= (1U << DMA_SxCR_CHSEL_Pos) | (1U << DMA_SxCR_TCIE_Pos) | (1U << DMA_SxCR_DIR_Pos) |
 						(1U << DMA_SxCR_MINC_Pos);
@@ -70,7 +69,6 @@ void oled_dma_send(const uint8_t *buf, uint16_t len)
 
     I2C1->CR2 |= I2C_CR2_DMAEN;
     DMA1_Stream6->CR |= DMA_SxCR_EN;
-    // returns immediately — ISR handles the rest
 }
 
 void DMA1_Stream6_IRQHandler(void){

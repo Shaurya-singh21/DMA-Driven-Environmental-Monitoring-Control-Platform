@@ -13,16 +13,16 @@
 #include "oled.h"
 sys_info dp = { 0 };
 
+volatile uint16_t cnt = 0;
 volatile uint16_t pwm_target = 0;
 volatile uint8_t low_temp_read = 0;
 volatile uint8_t high_temp_read = 0;
 volatile uint8_t flag = 0;
 //dma variables
 uint16_t buffer[DMA0_BUFFER_SIZE];
-float ldr;
 uint8_t proximity;
 //uart varaible
-char uart_buffer[100];
+char uart_buffer[50];
 extern volatile uint8_t uart_busy;
 volatile uint8_t dma_busy = 0;
 
@@ -33,7 +33,10 @@ void stop_cooling(void) {
 	//vent close
 	TIM4->DIER |= (TIM_DIER_UIE);
 	pwm_target = 2000;
+	//fan off
+	TIM1->CR1 &= ~(TIM_CR1_CEN);
 	dp.fan = 0;
+	dp.vent = 0;
 	high_temp_read = 0;
 }
 void stop_heat(void) {
@@ -41,6 +44,7 @@ void stop_heat(void) {
 	//blink off
 	TIM2->CR1 &= ~(TIM_CR1_CEN);
 	//vent close
+	dp.vent = 0;
 	TIM4->DIER |= (TIM_DIER_UIE);
 	pwm_target = 2000;
 }
@@ -54,14 +58,13 @@ void check_temp(void) {
 	if (dp.temp > optimum_temp_high) {
 		++high_temp_read;
 		if (!(flag & COOLING_PROCESS) && high_temp_read > 4) {
-			flag |= (COOLING_PROCESS);
-			dp.fan = 1;
+			flag |= (COOLING_PROCESS) | (START_COOLING);
 			high_temp_read = 0;
 		}
 	} else if (dp.temp < optimum_temp_low) {
 		++low_temp_read;
 		if (!(flag & HEATING_PROCESS) && low_temp_read > 4) {
-			flag |= HEATING_PROCESS;
+			flag |= HEATING_PROCESS | START_HEATING;
 			low_temp_read = 0;
 		}
 	} else {
@@ -79,24 +82,35 @@ void check_ldr_ir_proximity() {
 	float vout = ((buffer[1] * 3.3f) / (4095.0f));
 	float rldr = Rfix * (3.3f / vout - 1.0f);
 	float lux = pow(500000.0f / rldr, 1.428f);
-	ldr = lux;
+	dp.ldr = lux;
 	proximity = GPIOF->IDR & (GPIO_IDR_ID6);
-	if (ldr > LDR_Threshold && !proximity)
+	if (dp.ldr > LDR_Threshold && !proximity)
 		dp.door = 1;
-	if (ldr < LDR_Threshold && dp.door == 1)
+	if (dp.ldr < LDR_Threshold && dp.door == 1)
 		dp.door = 0;
 }
 void update_display(void) {
 	if (oled_is_busy())
 		return;
-	char line[22];
-	snprintf(line, sizeof(line), "    Temp: %.1f C    ", dp.temp);
+	char line[30];
+	if (dp.temp > optimum_temp_high)
+		snprintf(line, sizeof(line), "Temp: %.2f%cC [HIGH TEMP]", dp.temp,
+		SYM_DEGREE);
+	else if (dp.temp < optimum_temp_low)
+		snprintf(line, sizeof(line), "Temp: %.2f%cC [LOW TEMP]", dp.temp,
+		SYM_DEGREE);
+	else
+		snprintf(line, sizeof(line), "Temp: %.2f%cC [OK]", dp.temp, SYM_DEGREE);
+	;
 	oled_print(0, 2, line);
-	snprintf(line, sizeof(line), "    Door: %s", dp.door ? "OPEN" : "CLOSED");
+	snprintf(line, sizeof(line), "LDR: %u", buffer[1]);
+	oled_print(0, 3, line);
+	snprintf(line, sizeof(line), "Door: %s          ",dp.vent ? "OPEN" : "CLOSED");
 	oled_print(0, 4, line);
-	snprintf(line, sizeof(line), "    Fan: %s", dp.fan ? "ON" : "OFF");
+	snprintf(line, sizeof(line), "Fan: %s           ", dp.fan ? "ON" : "OFF");
 	oled_print(0, 5, line);
-	oled_print(0, 6, "                     ");
+	snprintf(line, sizeof(line), "Vent: %s          ", dp.vent ? "OPEN" : "CLOSED");
+	oled_print(0, 6, line);
 	oled_flush();
 }
 void process_dma_data(void) {
@@ -106,8 +120,8 @@ void process_dma_data(void) {
 		;
 	memset(uart_buffer, 0, sizeof(uart_buffer));
 	snprintf(uart_buffer, sizeof(uart_buffer),
-			"Temp:%1f, LDR:%1f ,NTC_RAW:%u, LDR_RAW:%u,DOOR: %u ,cnt:%u \r\n",
-			dp.temp, ldr, buffer[0], buffer[1], dp.door, high_temp_read);
+			"%u, %.2f, %u,%.2f %u, %u , %u, %u \r\n", ++cnt, dp.temp, buffer[0],
+			dp.ldr, buffer[1], dp.door, dp.fan, dp.vent);
 	send((char*) uart_buffer);
 	update_display();
 }
@@ -133,7 +147,8 @@ void sys_stop(void) {
 	TIM2->CCR1 = 0;
 	//dma_stop
 	DMA2_Stream0->CR &= ~DMA_SxCR_EN;
-	while (DMA2_Stream0->CR & DMA_SxCR_EN);
+	while (DMA2_Stream0->CR & DMA_SxCR_EN)
+		;
 	DMA2->LIFCR = (DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 | DMA_LIFCR_CTEIF0
 			| DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0);
 
@@ -149,6 +164,10 @@ void start_cooling(void) {
 	//vent open
 	TIM4->DIER |= (TIM_DIER_UIE);
 	pwm_target = 1000;
+	dp.vent = 1;
+	//fan open
+	TIM1->CCR2 = 400;
+	TIM1->CR1 |= (TIM_CR1_CEN);
 	dp.fan = 1;
 }
 
@@ -159,6 +178,7 @@ void start_heating(void) {
 	//vent open 45 degree
 	TIM4->DIER |= (TIM_DIER_UIE);
 	pwm_target = 1500;
+	dp.vent = 1;
 }
 
 int main(void) {
@@ -172,6 +192,7 @@ int main(void) {
 	oled_init();
 	adc_init();
 	welcome_message();
+	send((char*) "CNT TEMP RAW_TEMP LDR RAW_LDR DOOR FAN VENT\r\n");
 	for (;;) {
 		if (flag & START_SYS) {
 			if (!sys_initialized) {
@@ -189,13 +210,13 @@ int main(void) {
 				process_dma_data();
 				flag &= ~(DMA_PROCESS);
 			}
-			if (flag & COOLING_PROCESS) {
+			if (flag & START_COOLING) {
 				start_cooling();
-				flag &= ~(COOLING_PROCESS);
+				flag &= ~(START_COOLING);
 			}
 			if (flag & HEATING_PROCESS) {
 				start_heating();
-				flag &= ~(HEATING_PROCESS);
+				flag &= ~(START_HEATING);
 			}
 		} else {
 			if (sys_initialized) {

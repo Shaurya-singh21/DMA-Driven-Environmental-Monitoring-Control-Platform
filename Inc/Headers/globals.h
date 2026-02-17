@@ -4,14 +4,19 @@ typedef enum{
 	DMA_PROCESS = (1U << 0),
 	COOLING_PROCESS = (1U << 1),
 	HEATING_PROCESS = (1U << 2),
+	START_COOLING = (1U << 3),
+	START_HEATING = (1U << 4),
 	START_SYS = (1U << 7)
 } process;
 
+
 typedef struct{
 	float temp;
+	float ldr;
 	uint8_t fan;
+	uint8_t fan_speed;
 	uint8_t door;
-	uint8_t ai;
+	uint8_t vent;
 } sys_info;
 
 //ntc
@@ -21,10 +26,13 @@ typedef struct{
 //ldr
 #define LDR_Threshold 8.5f
 
+#define fan_speed() uint8_t((max_temp - optimum_temp_high)/)
+
 #define Rfix 10000.0f
 
-#define optimum_temp_low 20.0f
-#define optimum_temp_high 21.0f
-
+#define min_temp 17.0f
+#define optimum_temp_low 22.0f
+#define optimum_temp_high 28.0f
+#define max_temp 32.0f
 
 #endif

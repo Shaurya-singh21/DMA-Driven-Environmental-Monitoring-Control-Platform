@@ -23,9 +23,6 @@ void adc_init(void){
 	ADC1->SQR3 |= (1U << ADC_SQR3_SQ2_Pos);  // Second conversion: channel 1
 
 	//automated checking by timer_3 every 1000ms
-//	ADC1->CR2 &= ~ADC_CR2_EXTSEL;
-//	ADC1->CR2 &= ~ADC_CR2_EXTEN;
-//	ADC1->CR2 |= (1U << ADC_CR2_EXTEN_Pos) | (7U << ADC_CR2_EXTSEL_Pos);
 	ADC1->CR2 &= ~ADC_CR2_EXTSEL;
 	ADC1->CR2 &= ~ADC_CR2_EXTEN;
 	ADC1->CR2 |= (1U << ADC_CR2_EXTEN_Pos)  // trigger on rising edge

@@ -31,7 +31,6 @@ void USART2_IRQHandler(void){
 	//transmit
 	if((USART2->SR & (USART_SR_TXE)) && (USART2->CR1 & (USART_CR1_TXEIE))){
 		if(*word == '\0'){
-//			GPIOC->BSRR = (GPIO_BSRR_BR8);
 			USART2->CR1 &= ~(1U << USART_CR1_TXEIE_Pos);
 			uart_busy = 0;
 		}else{
